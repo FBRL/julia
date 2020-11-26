@@ -7587,7 +7587,6 @@ static void init_jit_functions(void)
     add_named_global(except_enter_func, (void*)NULL);
 
 #ifdef _OS_WINDOWS_
-#ifndef FORCE_ELF
 #if defined(_CPU_X86_64_)
 #if defined(_COMPILER_GCC_)
     add_named_global("___chkstk_ms", &___chkstk_ms);
@@ -7599,7 +7598,6 @@ static void init_jit_functions(void)
     add_named_global("_alloca", &_alloca);
 #else
     add_named_global("_chkstk", &_chkstk);
-#endif
 #endif
 #endif
 #endif
