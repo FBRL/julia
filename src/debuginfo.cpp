@@ -316,7 +316,9 @@ public:
 #endif
 
 #if defined(_OS_WINDOWS_)
-        uint64_t SectionAddrCheck = 0; // assert that all of the Sections are at the same location
+        uint64_t SectionAddrCheck = 0;
+        uint64_t SectionLoadCheck = 0;
+        uint64_t SectionWriteCheck = 0;
         uint8_t *UnwindData = NULL;
 #if defined(_CPU_X86_64_)
         uint8_t *catchjmp = NULL;
@@ -351,25 +353,26 @@ public:
                 SectionLoadAddr = getLoadAddress(sName);
 #endif
                 assert(SectionLoadAddr);
-                if (SectionAddrCheck)
-                    assert(SectionAddrCheck == SectionLoadAddr);
-                else
-                    SectionAddrCheck = SectionLoadAddr;
+                if (SectionAddrCheck) // assert that all of the Sections are at the same location
+                    assert(SectionAddrCheck == SectionAddr &&
+                           SectionLoadCheck == SectionLoadAddr);
+                SectionAddrCheck = SectionAddr;
+                SectionLoadCheck = SectionLoadAddr;
+                SectionWriteCheck = SectionLoadAddr;
                 if (memmgr)
-                    Addr +=
-                        (uintptr_t)lookupWriteAddressFor(memmgr,
-                                                         (void*)SectionLoadAddr)
-                        - SectionLoadAddr;
+                    SectionWriteCheck = (uintptr_t)lookupWriteAddressFor(memmgr,
+                            (void*)SectionLoadAddr);
+                Addr += SectionWriteCheck - SectionLoadAddr;
                 *pAddr = (uint8_t*)Addr;
             }
         }
         assert(catchjmp);
         assert(UnwindData);
         assert(SectionAddrCheck);
+        assert(SectionLoadCheck);
         catchjmp[0] = 0x48;
         catchjmp[1] = 0xb8; // mov RAX, QWORD PTR [&__julia_personality]
-        *(uint64_t*)(&catchjmp[2]) =
-            (uint64_t)&__julia_personality;
+        *(uint64_t*)(&catchjmp[2]) = (uint64_t)&__julia_personality;
         catchjmp[10] = 0xff;
         catchjmp[11] = 0xe0; // jmp RAX
         UnwindData[0] = 0x09; // version info, UNW_FLAG_EHANDLER
@@ -380,7 +383,7 @@ public:
         UnwindData[5] = 0x03; // mov RBP, RSP
         UnwindData[6] = 1;    // first instruction
         UnwindData[7] = 0x50; // push RBP
-        *(DWORD*)&UnwindData[8] = (DWORD)(catchjmp - (uint8_t*)SectionAddrCheck); // relative location of catchjmp
+        *(DWORD*)&UnwindData[8] = (DWORD)(catchjmp - (uint8_t*)SectionWriteCheck); // relative location of catchjmp
 #endif // defined(_OS_X86_64_)
 #endif // defined(_OS_WINDOWS_)
 
@@ -419,9 +422,10 @@ public:
             size_t Size = sym_size.second;
 #if defined(_OS_WINDOWS_)
             if (SectionAddrCheck)
-                assert(SectionAddrCheck == SectionLoadAddr);
-            else
-                SectionAddrCheck = SectionLoadAddr;
+                assert(SectionAddrCheck == SectionAddr &&
+                       SectionLoadCheck == SectionLoadAddr);
+            SectionAddrCheck = SectionAddr;
+            SectionLoadCheck = SectionLoadAddr;
             create_PRUNTIME_FUNCTION(
                    (uint8_t*)(uintptr_t)Addr, (size_t)Size, sName,
                    (uint8_t*)(uintptr_t)SectionLoadAddr, (size_t)SectionSize, UnwindData);
